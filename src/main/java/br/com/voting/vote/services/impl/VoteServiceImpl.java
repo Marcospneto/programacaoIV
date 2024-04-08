@@ -17,7 +17,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class VoteServiceImpl implements VoteService {
@@ -29,6 +31,7 @@ public class VoteServiceImpl implements VoteService {
     private VotingSessionRepository votingSessionRepository;
     @Autowired
     private VoteRepository voteRepository;
+
 
 
     @Override
@@ -45,12 +48,7 @@ public class VoteServiceImpl implements VoteService {
             throw new ResourceNotFoundExceptions("Voting session has not started yet.");
 
         } else if (isVotingSessionExpired(objVote.getVotingSession())) {
-            Vote vtexception = new Vote();
-            vtexception.setVotingSession(objVote.getVotingSession());
-            vtexception.getVotingSession().setStatus(StatusVotingSession.CLOSE);
-            // Salvar o novo objeto Vote no repositório
-            voteRepository.save(vtexception);
-
+            updateVotingSessionExpired(objVote.getVotingSession().getId());
             throw new ResourceNotFoundExceptions("Voting session has ended. Cannot register vote.");
 
         } else {
@@ -64,10 +62,25 @@ public class VoteServiceImpl implements VoteService {
     }
 
 
+    /*Com o MAP meu codigo fica mais simples, pois permite armazenar e recuperar dados
+     com base em uma chave unica, em vez de usar variaveis separadas para cada tipo de voto*/
     @Override
-    public int contVotesTopic(Long topicId, TypeVote type) {
+    public Map<TypeVote, Integer> contVotesTopic(Long topicId) {
 
-        return 0;
+        Topic topic = topicRepository.findById(topicId).
+                orElseThrow(()-> new ResourceNotFoundExceptions("Topic not found"));
+
+
+        int voteYes = voteRepository.countByTopicAndTypeVote(topic, TypeVote.SIM);
+        int voteNo = voteRepository.countByTopicAndTypeVote(topic, TypeVote.NAO);
+
+        Map<TypeVote, Integer> result = new HashMap<>();
+        result.put(TypeVote.SIM, voteYes);
+        result.put(TypeVote.NAO, voteNo);
+
+        return result;
+
+
     }
 
     @Override
@@ -154,4 +167,13 @@ public class VoteServiceImpl implements VoteService {
         return now.isBefore(startTime);
     }
 
-}
+    public void updateVotingSessionExpired(Long votingSessionId) {
+        VotingSession session = votingSessionRepository.findById(votingSessionId).orElse(null);
+
+        // Definindo o status da sessão como "CLOSE"
+        session.setStatus(StatusVotingSession.CLOSE);
+
+        // Salvando a sessão atualizada de volta no banco de dados
+        votingSessionRepository.save(session);
+    }
+    }
